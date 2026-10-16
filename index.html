@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="uk"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png">
+<title>Таксі облік</title>
+<style>
+:root{--bg:#000;--card:#151515;--line:#2c2c2c;--tx:#f0f0f0;--mut:#8c8c8c;--ac:#ffc400;--ok:#3ddc84;--bad:#ff5a5a;color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px system-ui,sans-serif;padding-top:env(safe-area-inset-top)}
+main{padding:12px 12px 100px;max-width:560px;margin:auto}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#0b0b0b;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;padding:17px 0;background:none;border:0;color:var(--mut);font-size:16px}
+nav button.on{color:var(--ac);font-weight:700}
+label{display:block;margin:12px 0;color:var(--mut);font-size:14px}
+input{display:block;width:100%;margin-top:6px;padding:14px;font-size:22px;background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:12px}
+.r{display:flex;gap:8px;align-items:center}.r input{flex:1}
+.seg{display:flex;gap:8px;margin:10px 0}
+.seg button{flex:1;padding:16px;font-size:18px;background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:12px}
+.seg button.on{background:var(--ac);color:#000;border-color:var(--ac);font-weight:700}
+.big{display:block;width:100%;padding:18px;margin:12px 0;font-size:20px;font-weight:700;background:var(--ac);color:#000;border:0;border-radius:14px}
+.big.alt{background:var(--card);color:var(--tx);border:1px solid var(--line);font-weight:400;font-size:17px}
+.sm{padding:11px 14px;background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:10px;font-size:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0;line-height:1.6}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:8px 0}
+.row.hl{border-color:var(--ac)}
+.ic{background:none;border:0;font-size:22px;padding:8px;color:var(--tx)}
+.top{display:flex;align-items:center;gap:10px;margin-bottom:8px}.top h2{flex:1;margin:0;font-size:20px;text-align:center}
+.mut{color:var(--mut);font-size:14px}.bad{color:var(--bad)}.ok{color:var(--ok)}.ac{color:var(--ac)}.big2{font-size:28px}
+.chip{display:inline-block;padding:9px 14px;margin:6px 6px 0 0;border:1px solid var(--line);border-radius:10px;background:#222;color:var(--tx);font-size:18px}
+.chip.o{border-color:var(--ac);color:var(--ac);font-weight:700}.chip.offc{opacity:.35;text-decoration:line-through}
+.chk{display:flex;gap:10px;align-items:center;color:var(--tx);font-size:16px}.chk input{width:auto;margin:0}
+#toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:#333;padding:12px 18px;border-radius:12px}
+</style></head><body><main>
+<section id="se">
+ <div id="tb" class="card"></div>
+ <div class="seg"><button id="bc" onclick="st('cash')">Готівка</button><button id="bk" onclick="st('card')">Картка</button></div>
+ <div class="seg" id="sub"><button id="pt" onclick="sp('term')">Термінал</button><button id="po" onclick="sp('own')">Моя картка</button></div>
+ <label>Вартість поїздки, грн<input id="cost" type="number" inputmode="decimal" oninput="upd()"></label>
+ <label id="lg">Дав клієнт, грн<input id="given" type="number" inputmode="decimal" oninput="upd()"></label>
+ <label id="lt">Чайові, грн (необов'язково)<div class="r"><input id="tip" type="number" inputmode="decimal" oninput="upd()"><button class="sm" onclick="nochg()">Без здачі</button></div></label>
+ <div id="out" class="card"></div>
+ <button class="big" id="bSave" onclick="sv()">Записати</button>
+ <button class="big alt" id="cn" onclick="cl()" hidden>Скасувати редагування</button>
+</section>
+<section id="sc" hidden>
+ <label>Дав клієнт, грн<input id="cg" type="number" inputmode="decimal" oninput="calc()"></label>
+ <label>Вартість поїздки, грн<input id="cc" type="number" inputmode="decimal" oninput="calc()"></label>
+ <div id="co" class="card"></div>
+ <h3>Є в гаманці</h3><div id="dn"></div>
+</section>
+<section id="sb" hidden></section>
+</main>
+<nav><button id="ne" onclick="go('e')">Запис</button><button id="nc" onclick="go('c')">Калькулятор</button><button id="nb" onclick="go('b')">База</button></nav>
+<div id="toast" hidden></div>
+<script>
+const $=s=>document.querySelector(s),pad=n=>String(n).padStart(2,'0'),
+MN=['Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'],
+WD=['Нд','Пн','Вт','Ср','Чт','Пт','Сб'],DEN=[1000,500,200,100,50,20,10,5,2,1];
+let db=JSON.parse(localStorage.tdb||'[]'),cfg={pct:35,cut:6,tb:1,off:[],...JSON.parse(localStorage.tcfg||'{}')},
+E={t:'cash',p:'term',ed:null},N={l:'m',y:+today().slice(0,4)},tab='e';
+const sv0=()=>{localStorage.tdb=JSON.stringify(db);localStorage.tcfg=JSON.stringify(cfg)};
+function today(){const d=new Date(Date.now()-cfg.cut*36e5);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+const f=n=>(+n||0).toLocaleString('uk-UA',{maximumFractionDigits:2}),live=()=>db.filter(x=>!x.del);
+function tot(a){const t={all:0,cash:0,term:0,own:0,tip:0};
+ a.forEach(x=>{t.all+=x.cost;t.tip+=x.tip||0;t[x.type=='cash'?'cash':x.pay=='term'?'term':'own']+=x.cost});
+ t.me=t.all*cfg.pct/100+t.tip;t.boss=t.all*(100-cfg.pct)/100-(cfg.tb?t.term:0);return t}
+function chg(x){let r=Math.round(x),o=[];
+ for(const d of DEN){if(cfg.off.includes(d))continue;const k=Math.floor(r/d);if(k){o.push(`<span class="chip o">${d}${k>1?'×'+k:''}</span>`);r-=k*d}}
+ return o.join('')+(r?`<div class="mut">Не вистачає купюр на ${r} грн</div>`:'')}
+function msg(t){const e=$('#toast');e.textContent=t;e.hidden=0;clearTimeout(msg.t);msg.t=setTimeout(()=>e.hidden=1,1800)}
+const res=(g,c,t)=>{const d=g-c-t;return d<0?`<b class="bad">Не вистачає ${f(-d)} грн</b>`:`Здача: <b class="big2">${f(d)} грн</b><div>${chg(d)}</div>`};
+function st(t){E.t=t;upd()}function sp(p){E.p=p;upd()}
+function upd(){const cash=E.t=='cash',c=+$('#cost').value||0,g=+$('#given').value||0,t=+$('#tip').value||0;
+ $('#bc').className=cash?'on':'';$('#bk').className=cash?'':'on';
+ $('#pt').className=E.p=='term'?'on':'';$('#po').className=E.p=='own'?'on':'';
+ $('#sub').hidden=cash;$('#lg').hidden=!cash;$('#lt').hidden=!cash&&E.p=='term';
+ const h=cash&&g&&c?res(g,c,t):'';$('#out').innerHTML=h;$('#out').hidden=!h}
+function nochg(){const d=(+$('#given').value||0)-(+$('#cost').value||0);if(d>0)$('#tip').value=d;upd()}
+function sv(){const cash=E.t=='cash',c=+$('#cost').value,t=+$('#tip').value||0;
+ if(!(c>0))return msg('Введи вартість поїздки');
+ const g=+$('#given').value||c+t;
+ if(cash&&g<c+t)return msg('Клієнт дав менше, ніж треба');
+ const r={type:E.t,cost:c,given:cash?g:0,change:cash?g-c-t:0,pay:cash?null:E.p,tip:cash||E.p=='own'?t:0};
+ if(E.ed)Object.assign(db.find(x=>x.id==E.ed),r);else db.push({id:Date.now(),ts:Date.now(),day:today(),...r});
+ sv0();cl();msg('Записано ✓');render()}
+function cl(){E.ed=null;['cost','given','tip'].forEach(i=>$('#'+i).value='');$('#cn').hidden=1;$('#bSave').textContent='Записати';upd()}
+function ed(id){const x=db.find(y=>y.id==id);E={t:x.type,p:x.pay||'term',ed:id};
+ $('#cost').value=x.cost;$('#given').value=x.type=='cash'?x.given:'';$('#tip').value=x.tip||'';
+ $('#cn').hidden=0;$('#bSave').textContent='Зберегти зміни';go('e');upd()}
+function del(id){if(confirm('Видалити запис?')){db.find(x=>x.id==id).del=1;sv0();render()}}
+function dr(p,l){const a=live().filter(x=>x.day.startsWith(p));
+ if(!confirm(`Видалити ${l}? Записів: ${a.length}. Їх можна повернути з кошика (⚙).`))return;a.forEach(x=>x.del=1);sv0();render()}
+function go(t){tab=t;['e','c','b'].forEach(k=>{$('#s'+k).hidden=k!=t;$('#n'+k).className=k==t?'on':''});render()}
+function calc(){const g=+$('#cg').value||0,c=+$('#cc').value||0,h=g&&c?res(g,c,0):'';$('#co').innerHTML=h;$('#co').hidden=!h}
+function drawDn(){$('#dn').innerHTML=DEN.map(d=>`<button class="chip${cfg.off.includes(d)?' offc':''}" onclick="tg(${d})">${d}</button>`).join('')}
+function tg(d){cfg.off=cfg.off.includes(d)?cfg.off.filter(x=>x!=d):[...cfg.off,d];sv0();drawDn();calc();upd()}
+function render(){const t=tot(live().filter(x=>x.day==today()));
+ $('#tb').innerHTML=`Зміна: всього <b>${f(t.all)}</b> · мені <b class="ok">${f(t.me)}</b> · керівнику <b class="ac">${f(t.boss)}</b>`;
+ if(tab=='b')rDB()}
+function rDB(){const T=today(),ty=+T.slice(0,4),tm=+T.slice(5,7),L=live(),n=N;
+ if(n.l=='s')return rSet();if(n.l=='x')return rTr();
+ let h='',back='',title='Роки';
+ const sum=a=>{const t=tot(a);return `Всього ${f(t.all)} · мені ${f(t.me)} · керівнику ${f(t.boss)}`},
+ row=(t,s,g,d,hl)=>`<div class="row${hl?' hl':''}" onclick="${g}"><div><b>${t}</b><div class="mut">${s}</div></div><button class="ic" onclick="event.stopPropagation();${d}">🗑</button></div>`,
+ uq=a=>[...new Set(a)].sort((a,b)=>b-a);
+ if(n.l=='y'){h=uq([...L.map(x=>+x.day.slice(0,4)),ty]).map(y=>row(y,sum(L.filter(x=>x.day.startsWith(y+'-'))),`N={l:'m',y:${y}};rDB()`,`dr('${y}-','рік ${y}')`,y==ty)).join('')}
+ else if(n.l=='m'){const p=n.y+'-';title=n.y;back=`<button class="sm" onclick="N={l:'y'};rDB()">← Роки</button>`;
+  h=uq([...L.filter(x=>x.day.startsWith(p)).map(x=>+x.day.slice(5,7)),...(n.y==ty?[tm]:[])]).map(m=>row(`${MN[m-1]} (${m})`,sum(L.filter(x=>x.day.startsWith(p+pad(m)+'-'))),`N={l:'d',y:${n.y},m:${m}};rDB()`,`dr('${p+pad(m)}-','${MN[m-1]} ${n.y}')`,n.y==ty&&m==tm)).join('')}
+ else if(n.l=='d'){const p=n.y+'-'+pad(n.m)+'-';title=`${MN[n.m-1]} (${n.m})`;back=`<button class="sm" onclick="N={l:'m',y:${n.y}};rDB()">← ${n.y}</button>`;
+  h=uq([...L.filter(x=>x.day.startsWith(p)).map(x=>+x.day.slice(8)),...(n.y==ty&&n.m==tm?[+T.slice(8)]:[])]).map(d=>{const k=p+pad(d);
+   return row(d,`${WD[new Date(n.y,n.m-1,d).getDay()]}: `+sum(L.filter(x=>x.day==k)),`N={l:'t',y:${n.y},m:${n.m},d:${d}};rDB()`,`dr('${k}','${d} ${MN[n.m-1]}')`,k==T)}).join('')}
+ else{const k=n.y+'-'+pad(n.m)+'-'+pad(n.d),a=L.filter(x=>x.day==k).sort((x,y)=>y.ts-x.ts),t=tot(a);
+  title=`${n.d} ${MN[n.m-1]}`;back=`<button class="sm" onclick="N={l:'d',y:${n.y},m:${n.m}};rDB()">← ${MN[n.m-1]}</button>`;
+  h=`<div class="card">${sum(a)}<div class="mut">Готівка ${f(t.cash)} · термінал ${f(t.term)} · моя картка ${f(t.own)} · чайові ${f(t.tip)}</div></div>`+
+  (a.map(x=>`<div class="row"><div><b>${new Date(x.ts).toTimeString().slice(0,5)} · ${f(x.cost)} грн</b><div class="mut">${x.type=='cash'?`Готівка: дав ${f(x.given)}, здача ${f(x.change)}`:x.pay=='term'?'Термінал':'Моя картка'}${x.tip?`, чайові ${f(x.tip)}`:''}</div></div><div><button class="ic" onclick="ed(${x.id})">✎</button><button class="ic" onclick="del(${x.id})">🗑</button></div></div>`).join('')||'<p class="mut">Поки порожньо</p>')}
+ $('#sb').innerHTML=`<div class="top">${back}<h2>${title}</h2><button class="sm" onclick="N={l:'s'};rDB()">⚙</button></div>`+h}
+function rSet(){$('#sb').innerHTML=`<div class="top"><button class="sm" onclick="N={l:'m',y:${+today().slice(0,4)}};rDB()">← Назад</button><h2>Налаштування</h2></div>
+ <label>Моя частка, %<input type="number" value="${cfg.pct}" onchange="cfg.pct=Math.min(100,Math.max(0,+this.value||0));sv0();render()"></label>
+ <label>День змінюється о (година)<input type="number" value="${cfg.cut}" onchange="cfg.cut=Math.min(23,Math.max(0,+this.value||0));sv0();render()"></label>
+ <label class="chk"><input type="checkbox" ${cfg.tb?'checked':''} onchange="cfg.tb=+this.checked;sv0();render()">Термінал: гроші йдуть керівнику</label>
+ <button class="big" onclick="exp()">Експорт (резервна копія)</button>
+ <button class="big alt" onclick="$('#fi').click()">Імпорт</button><input id="fi" type="file" accept=".json" hidden onchange="imp(this)">
+ <button class="big alt" onclick="N={l:'x'};rDB()">Кошик (${db.filter(x=>x.del).length})</button>`}
+function rTr(){const a=db.filter(x=>x.del).sort((x,y)=>y.ts-x.ts);
+ $('#sb').innerHTML=`<div class="top"><button class="sm" onclick="N={l:'s'};rDB()">← Назад</button><h2>Кошик</h2></div>`+
+ (a.map(x=>`<div class="row"><div><b>${x.day} · ${f(x.cost)} грн</b><div class="mut">${x.type=='cash'?'Готівка':x.pay=='term'?'Термінал':'Моя картка'}</div></div><div><button class="ic" onclick="rs(${x.id})">↩</button><button class="ic" onclick="pd(${x.id})">✖</button></div></div>`).join('')||'<p class="mut">Порожньо</p>')+
+ (a.length?`<button class="big alt" onclick="pa()">Очистити кошик назавжди</button>`:'')}
+function rs(id){db.find(x=>x.id==id).del=0;sv0();rDB()}
+function pd(id){if(confirm('Видалити назавжди?')){db=db.filter(x=>x.id!=id);sv0();rDB()}}
+function pa(){if(confirm('Видалити все з кошика назавжди?')){db=db.filter(x=>!x.del);sv0();rDB()}}
+function exp(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({db,cfg})],{type:'application/json'}));a.download=`taxi-${today()}.json`;a.click()}
+function imp(i){const r=new FileReader();r.onload=()=>{try{const o=JSON.parse(r.result);if(!Array.isArray(o.db))throw 0;
+ if(!confirm(`Замінити поточну базу? Записів у файлі: ${o.db.length}`))return;db=o.db;cfg={...cfg,...o.cfg};sv0();N={l:'m',y:+today().slice(0,4)};render();msg('Імпортовано ✓')}catch(e){msg('Файл не підійшов')}};r.readAsText(i.files[0])}
+cl();drawDn();calc();go('e');
+addEventListener('visibilitychange',()=>{if(!document.hidden)render()});
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+navigator.storage?.persist?.();
+</script></body></html>
